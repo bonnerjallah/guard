@@ -3,28 +3,22 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader';
 import { Pathfinding } from 'three-pathfinding';
-import * as YUKA from "yuka"
-
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
-
-import { Soldier } from './src/Soldier';
+import { SoldierHandler } from './src/SoldierHandler';
+import { Player } from './src/user';
 
 class Game {
   constructor() {
-    // Create a container for the scene
     const container = document.createElement('div');
     document.body.appendChild(container);
 
-    // Initialize clock for timing
     this.clock = new THREE.Clock();
     this.assetsPath = './src/assets/';
 
-    // Set up the scene
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     this.camera.position.set(0, 20, 18);
 
-    // Initialize the renderer
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     this.renderer.shadowMap.enabled = true;
     this.renderer.setPixelRatio(window.devicePixelRatio);
@@ -34,11 +28,9 @@ class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(this.renderer.domElement);
 
-    // Set up environment and controls
     this.setEnvironment();
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
 
-    // Add ambient and directional lights
     const ambLight = new THREE.AmbientLight(0xFFFFFF, 1);
     this.scene.add(ambLight);
 
@@ -46,19 +38,20 @@ class Game {
     dirLight.castShadow = true;
     this.scene.add(dirLight);
 
-    // Raycaster
-    this.mousePosition = new THREE.Vector2();
-    this.raycaster = new THREE.Raycaster();
+    this.navMesh = null;
 
+    this.waypoints = [
+      new THREE.Vector3(-27.81882856537557, 0.29805159497625056, -13.577763443433025),
+      new THREE.Vector3(-22.900421897999955, 0.43245118856430054, -28.610566022869367),
+      new THREE.Vector3(-9.6039526393299, 0.15212018774085578, -23.661349904821297),
+      new THREE.Vector3(11.139411311784096, 0.05447075365474063, -25.34194772470427),
+      new THREE.Vector3(22.49270810795621, 0.11702865545139929, -15.644607959332292),
+      new THREE.Vector3(17.87991236742986, 0.03516335914545721, 0.1599387825660159),
+      new THREE.Vector3(2.111216066142397, 0.599118173122406, -4.51340439470359),
+      new THREE.Vector3(-6.43017239446311, 0.0157847404480016, -4.499039174719126)
+    ];
 
-    // Bind event listeners
-    // window.addEventListener("mousemove", this.onMouseMove.bind(this));
-    window.addEventListener("click", this.onClick.bind(this));
-
-    // Start loading assets
     this.load();
-
-    // Handle window resize
     window.addEventListener('resize', this.onWindowResize.bind(this));
   }
 
@@ -74,7 +67,6 @@ class Game {
         pmremGenerator.dispose();
         this.scene.environment = envMap;
 
-        // Now that environment is set, start the animation loop
         this.animate();
       },
       undefined,
@@ -86,41 +78,40 @@ class Game {
 
   load() {
     this.loadEnvironment();
-    this.soldier = new Soldier(this);
+    this.soldierHandler = new SoldierHandler(this);
+    this.player = new Player(this);
   }
-
-  initPathFinding(navmesh) {
-    this.pathfinder = new Pathfinding();
-    this.ZONE = "factory"
-    this.pathfinder.setZoneData(this.ZONE, Pathfinding.createZone(navmesh.geometry, 0.02));
-  }
-
 
   loadEnvironment() {
     const loader = new GLTFLoader().setPath(this.assetsPath);
+    
     loader.load(
       'factory2.glb',
       (gltf) => {
         this.scene.add(gltf.scene);
-        this.fans = []
+        this.factory = gltf.scene;
+        this.fans = [];
         gltf.scene.traverse(child => {
-          if(child.isMesh) {
-            if(child.name == "NavMesh") {
-              child.material.transparent = true;
-              child.material.opacity = 0.5;
+          if (child.isMesh) {
+            if (child.name === "NavMesh") {
               this.navMesh = child;
-              // Rotate the navmesh geometry if necessary
+              child.material.transparent = true;
+              child.material.visible = false;
+              this.scene.add(this.navMesh);
+
               const rotationMatrix = new THREE.Matrix4().makeRotationX(Math.PI / 2);
               child.geometry.applyMatrix4(rotationMatrix);
-              this.navMesh.quaternion.identity()
+              child.quaternion.identity()
+
+              child.quaternion.set(0, 0, 0);
+
+              this.initPathFinding(this.navMesh.geometry);
+              console.log("NavMesh geometry set in Game:", this.navMesh.geometry);
             } else if (child.name.includes("fan")) {
-              this.fans.push(child)
+              this.fans.push(child);
             }
           }
         });
-
-        this.initPathFinding(this.navMesh);
-
       },
       undefined,
       (error) => {
@@ -129,66 +120,16 @@ class Game {
     );
   }
 
-  newPath(destination) {
-    // Clone destination for safety
-    destination = destination.clone();
   
-    // Ensure soldier and pathfinding are ready
-    if (!this.soldier || !this.pathfinder || !this.navMesh) {
-      console.error("Soldier, pathfinder, or navMesh not initialized properly");
-      return;
-    }
-  
-    // Get the navigation mesh group and closest node to the destination
-    const groupID = this.pathfinder.getGroup(this.ZONE, destination);
-    const closestNode = this.pathfinder.getClosestNode(destination, this.ZONE, groupID);
-  
-    console.log("Group ID:", groupID);
-    console.log("Closest Node:", closestNode);
-  
-    // Calculate path to the destination
-    this.calculatedPath = this.pathfinder.findPath(
-      this.soldier.swatguy.position,
-      destination,
-      this.ZONE,
-      groupID
-    );
-  
-    console.log("Calculated Path:", this.calculatedPath);
-  
-    // Check if a valid path was found
-    if (this.calculatedPath && this.calculatedPath.length) {
-      this.soldier.action = "walking";
-      this.setTargetDirection(this.calculatedPath[0].clone());
-  
-    } else {
-      console.log("No path found to destination");
-      this.soldier.action = "idle";
-    }
+
+  initPathFinding(navMeshGeometry) {
+    console.log("NavMesh Geometry:", navMeshGeometry);
+    this.ZONE = "factory"; // Ensure consistency with other references
+    this.pathfinder = new Pathfinding();
+    const zoneData = Pathfinding.createZone(navMeshGeometry, 0.02); // Adjust cellSize as needed
+    console.log("Zone Data:", zoneData);
+    this.pathfinder.setZoneData(this.ZONE, zoneData);
   }
-
-  setTargetDirection(destination) {
-    // Ensure soldier looks towards the destination
-    const swatGuy = this.soldier.swatguy;
-    destination.y = swatGuy.position.y;
-    swatGuy.lookAt(destination);
-  }
-  
-
-  onClick(event) {
-    this.mousePosition.x = (event.clientX / window.innerWidth) * 2 - 1;
-    this.mousePosition.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    this.raycaster.setFromCamera(this.mousePosition, this.camera);
-    const intersects = this.raycaster.intersectObjects([this.navMesh]);
-
-    if (intersects.length > 0) {
-      const destination = intersects[0].point;
-      console.log('Clicked at:', destination);
-      this.newPath(destination);
-    }
-  }
-
 
   onWindowResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight;
@@ -196,67 +137,25 @@ class Game {
     this.renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
-  animate = () => {
-    const deltaTime = this.clock.getDelta();
+  animate() {
+    requestAnimationFrame(this.animate.bind(this));
 
-    if(this.fans && this.fans.length > 0) {
-      this.fans.forEach( fan => {
-        fan.rotation.x += 0.1
+    const delta = this.clock.getDelta();
+
+    if (this.fans) {
+      this.fans.forEach(fan => {
+        fan.rotation.x += 0.05;
       })
     }
 
-  
-    if (this.soldier) {
-      this.soldier.update(deltaTime);
-
-  
-      if (this.calculatedPath && this.calculatedPath.length > 0) {
-        const targetPosition = this.calculatedPath[0].clone();
-        const soldierPosition = this.soldier.swatguy.position.clone();
-  
-        // Calculate direction and distance to the target
-        const direction = targetPosition.clone().sub(soldierPosition);
-        const distance = direction.length();
-  
-        if (distance > 0.01) {
-          direction.normalize();
-  
-          // Move soldier towards the target
-          const speed = 1.5; // Adjust as needed
-          this.soldier.swatguy.position.add(direction.multiplyScalar(deltaTime * speed));
-  
-          // Check if reached or overshot the target
-          if (direction.dot(targetPosition.clone().sub(soldierPosition)) <= 0) {
-            this.calculatedPath.shift(); // Remove the current target
-            if (this.calculatedPath.length === 0) {
-              // If no more targets, go idle or set new path
-              this.soldier.action = "idle";
-              // Example: this.newPath(this.randomWaypoint);
-            } else {
-              // Set new direction towards the next target
-              this.setTargetDirection(this.calculatedPath[0]);
-            }
-          }
-        } else {
-          // If very close to the target, treat as reached
-          this.calculatedPath.shift(); // Remove the current target
-          if (this.calculatedPath.length === 0) {
-            // If no more targets, go idle or set new path
-            this.soldier.action = "idle";
-            // Example: this.newPath(this.randomWaypoint);
-          } else {
-            // Set new direction towards the next target
-            this.setTargetDirection(this.calculatedPath[0]);
-          }
-        }
-      }
+    if (this.soldierHandler && this.soldierHandler.soldiers) {
+      this.soldierHandler.soldiers.forEach((soldier) => {
+        soldier.update(delta);
+      });
     }
-  
-    this.controls.update();
+
     this.renderer.render(this.scene, this.camera);
-    requestAnimationFrame(this.animate);
-  };
-  
+  }
 }
 
 export { Game };
