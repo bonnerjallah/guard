@@ -13,28 +13,6 @@ class SoldierHandler {
         this.load();
     }
 
-    initMouseHandler(){
-        const raycaster = new THREE.Raycaster();
-        this.game.renderer.domElement.addEventListener('click', raycast, false);
-
-        const self = this;
-        const mouse = { x: 0, y: 0 };
-
-        function raycast(e){
-            mouse.x = ( e.clientX / window.innerWidth ) * 2 - 1;
-            mouse.y = - ( e.clientY / window.innerHeight ) * 2 + 1;
-
-            raycaster.setFromCamera(mouse, self.game.camera);
-
-            const intersects = raycaster.intersectObject(self.game.navMesh);
-            if (intersects.length > 0){
-                const pt = intersects[0].point;
-                console.log(pt);
-                self.soldiers[0].newPath(pt, true);
-            }
-        }
-    }
-
     load() {
         const loader = new GLTFLoader().setPath(this.assetsPath);
         const dracoLoader = new DRACOLoader();
@@ -70,7 +48,7 @@ class SoldierHandler {
 
         const gltfsArray = [gltf.scene];
 
-        for (let i = 0; i < 4; i++) {
+        for (let i = 0; i < 3; i++) {
             const cloneGltf = SkeletonUtils.clone(gltf.scene);
             gltfsArray.push(cloneGltf);
         }
@@ -103,7 +81,7 @@ class SoldierHandler {
             const soldier = new Soldier(options);
 
             soldier.object.position.copy(this.randomWayPoint());
-            soldier.object.scale.set(1.9, 1.9, 1.9);
+            soldier.object.scale.set(1.3, 1.3, 1.3);
 
             soldier.newPath(this.randomWayPoint());
 
@@ -126,4 +104,4 @@ class SoldierHandler {
     }
 }
 
-export { SoldierHandler };
+export { SoldierHandler };  

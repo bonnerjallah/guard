@@ -8,6 +8,7 @@ class Soldier {
         this.waypoints = options.waypoints;
         this.speed = options.speed;
         this.app = options.app;
+        
 
         if (options.app.pathfinder) {
             this.pathfinder = options.app.pathfinder;
@@ -20,7 +21,7 @@ class Soldier {
         this.object.lookAt(point);
 
         if (options.animations) {
-            this.mixer = new THREE.AnimationMixer(options.object);
+            this.mixer = new THREE.AnimationMixer(this.object);
             options.animations.forEach(animation => {
                 this.animations[animation.name.toLowerCase()] = animation;
             });
@@ -64,18 +65,14 @@ class Soldier {
         } else {
             this.action = "idle";
 
+            //Boundary Constraints: Ensures the soldier remains within the defined navigation mesh.
             if (this.pathfinder) {
                 const closestPlayerNode = this.pathfinder.getClosestNode(player.position, this.ZONE, this.navMeshGroup);
                 const clamped = new THREE.Vector3();
-                this.pathfinder.clampStep(
-                    player.position,
-                    point.clone(),
-                    closestPlayerNode,
-                    this.ZONE,
-                    this.navMeshGroup,
-                    clamped
-                );
+                this.pathfinder.clampStep(player.position, point.clone(), closestPlayerNode, this.ZONE, this.navMeshGroup, clamped);
+                player.position.copy(clamped); // Ensure player position is within bounds
             }
+            
         }
     }
 
@@ -83,7 +80,8 @@ class Soldier {
         if (this.actionName === name.toLowerCase()) return;
 
         const clip = this.animations[name.toLowerCase()];
-        if (clip !== undefined) {
+
+        if (clip) {
             const action = this.mixer.clipAction(clip);
             if (name === 'shot') {
                 action.clampWhenFinished = true;
@@ -123,6 +121,7 @@ class Soldier {
 
             if (this.calculatedPath && this.calculatedPath.length) {
                 const targetPosition = this.calculatedPath[0];
+                //represents the direction and distance from the player's current position to the target position
                 const vel = targetPosition.clone().sub(player.position);
 
                 let pathLegComplete = (vel.lengthSq() < 0.01);
