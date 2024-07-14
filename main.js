@@ -18,8 +18,8 @@ class Game {
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    this.camera.position.set( 0, 25, 10);
-    // this.camera.position.set( -10.6, 1.6, -1.46 );
+    // this.camera.position.set( 0, 25, 10);
+    this.camera.position.set( -10.6, 3.6, -1.46 );
 		this.camera.rotation.y = -Math.PI*0.5;
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -69,7 +69,7 @@ class Game {
   load() {
     this.loadEnvironment();
     this.soldierHandler = new SoldierHandler(this);
-    this.player = new Player(this, new THREE.Vector3(-25.20, 0.274, 4.55), 0);
+    this.player = new Player(this, new THREE.Vector3( -5.97, 0.021, -1.49), 1.57);
   }
 
   loadEnvironment() {
@@ -140,26 +140,27 @@ class Game {
     const delta = this.clock.getDelta();
 
     if (this.fans) {
-      this.fans.forEach(fan => {
-        fan.rotation.x += 0.05;
-      })
+        this.fans.forEach(fan => {
+            fan.rotation.x += 0.05;
+        });
     }
 
     if (this.soldierHandler && this.soldierHandler.soldiers) {
-      this.soldierHandler.soldiers.forEach((soldier) => {
-        soldier.update(delta);
-      });
+        this.soldierHandler.soldiers.forEach((soldier) => {
+            soldier.update(delta);
+        });
     }
 
-    if(this.player !== undefined) {
-      this.player.update(delta);
-      if(this.controller !== undefined) {
-        this.controller.update(delta)
-      }
+    if (this.player && this.player.ready) {
+        this.player.update(delta);
+        if (this.controller) {
+            this.controller.update(delta);
+        }
     }
 
     this.renderer.render(this.scene, this.camera);
-  }
+}
+
 }
 
 export { Game };

@@ -7,11 +7,13 @@ class Controller {
         this.player = game.player;
         this.target = game.player.root;
         this.navMesh = game.navMesh;
+        this.clock = game.clock;
 
         this.raycaster = new THREE.Raycaster();
 
         this.move = { up: 0, right: 0 };
         this.look = { up: 0, right: 0 };
+        this.speed = 5;
 
         this.tmpVec3 = new THREE.Vector3();
         this.tmpQuat = new THREE.Quaternion();
@@ -21,12 +23,16 @@ class Controller {
         this.cameraBase.quaternion.copy(this.camera.quaternion);
         this.target.attach(this.cameraBase);
 
-        this.yAxis = new THREE.Vector3(0, 1, 0);
+        this.cameraHigh = new THREE.Camera();
+        this.cameraHigh.position.copy(this.camera.position);
+        this.cameraHigh.position.y += 10;
+        this.cameraHigh.lookAt(this.target.position);
+        this.target.attach(this.cameraHigh);
+
         this.xAxis = new THREE.Vector3(1, 0, 0);
+        this.yAxis = new THREE.Vector3(0, 1, 0);
         this.forward = new THREE.Vector3(0, 0, 1); // Initialize forward direction
         this.down = new THREE.Vector3(0, -1, 0);
-
-        this.speed = 5;
 
         this.checkForGamepad();
 
@@ -55,6 +61,10 @@ class Controller {
         };
     }
 
+
+    /**
+    * ! KEY CONTROLS
+    */
     keyDown(e) {
         switch (e.keyCode) {
             case 87: // W
@@ -73,6 +83,16 @@ class Controller {
                 this.fire();
                 break;
         }
+    }
+
+    keyHandler() {
+        if (this.keys.w) this.move.up = 1;
+        if (this.keys.s) this.move.up = -1;
+        if (this.keys.a) this.move.right = -1;
+        if (this.keys.d) this.move.right = 1;
+
+        if (!this.keys.w && !this.keys.s) this.move.up = 0;
+        if (!this.keys.a && !this.keys.d) this.move.right = 0;
     }
 
     keyUp(e) {
@@ -96,6 +116,9 @@ class Controller {
         }
     }
 
+    /**
+    * ! MOUSE CAMERA LOOK AROUND CONTROLS
+    */
     mouseDown(e) {
         this.keys.mousedown = true;
         this.keys.mouseorigin.x = e.offsetX;
@@ -114,27 +137,30 @@ class Controller {
         let offsetX = e.offsetX - this.keys.mouseorigin.x;
         let offsetY = e.offsetY - this.keys.mouseorigin.y;
 
-        if (offsetX < -100) offsetX = -100;
-        if (offsetX > 100) offsetX = 100;
+        if (offsetX<-100) offsetX = -100;
+        if (offsetX>100) offsetX = 100;
         offsetX /= 100;
 
-        if (offsetY < -100) offsetY = -100;
-        if (offsetY > 100) offsetY = 100;
+        if (offsetY<-100) offsetY = -100;
+        if (offsetY>100) offsetY = 100;
         offsetY /= 100;
 
         this.onLook(-offsetY, offsetX);
     }
 
-    keyHandler() {
-        if (this.keys.w) this.move.up += 0.1;
-        if (this.keys.s) this.move.up -= 0.1;
-        if (this.keys.a) this.move.right -= 0.1;
-        if (this.keys.d) this.move.right += 0.1;
 
-        if (this.move.up > 1) this.move.up = 1;
-        if (this.move.up < -1) this.move.up = -1;
-        if (this.move.right > 1) this.move.right = 1;
-        if (this.move.right < -1) this.move.right = -1;
+    fire() {
+        console.log("fire");
+    }
+
+    moveUp(up, right) {
+        this.move.up = up;
+        this.move.right = right;
+    }
+
+    onLook( up, right ){
+        this.look.up = up*0.25;
+        this.look.right = -right;
     }
 
     checkForGamepad() {
@@ -155,12 +181,13 @@ class Controller {
             this.keyHandler();
         }
 
-        if (this.move.up != 0) {
+        if (this.move.up !== 0) {
             const forward = this.forward.clone().applyQuaternion(this.target.quaternion);
             speed = this.move.up > 0 ? this.speed * dt : this.speed * dt * 0.3;
             speed *= this.move.up;
             const pos = this.target.position.clone().add(forward.multiplyScalar(speed));
             pos.y += 2;
+            //console.log(`Moving>> target rotation:${this.target.rotation} forward:${forward} pos:${pos}`);
 
             this.raycaster.set(pos, this.down);
 
@@ -193,14 +220,13 @@ class Controller {
             } else {
                 delete this.overRunSpeedTime;
             }
-
             if (run) {
-                this.user.action = 'run';
+                this.player.action = 'run';
             } else {
-                this.user.action = 'walk';
+                this.player.action = 'walk';
             }
         } else {
-            if (this.user !== undefined) this.user.action = 'idle';
+            if (this.player !== undefined) this.player.action = 'idle';
         }
 
         if (this.look.up == 0 && this.look.right == 0) {

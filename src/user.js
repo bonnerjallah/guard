@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { DRACOLoader } from "three/examples/jsm/loaders/DRACOLoader.js";
-import * as TWEEN from "@tweenjs/tween.js";
 import { Quaternion } from "three";
 
 class Player {
@@ -58,7 +57,6 @@ class Player {
 
             if (intersects.length > 0) {
                 const point = intersects[0].point;
-                console.log("point", point)
                 this.root.position.copy(point);
             } else {
                 console.log("No intersections detected");
@@ -88,8 +86,7 @@ class Player {
                 this.object.scale.set(1.8, 1.8, 1.8);
                 
                 // Set the look vector to where you want the character to face
-                const look = new THREE.Vector3(23.61,  0.220, 2.9464961804274523);
-                look.y = 0.17;
+                const look = new THREE.Vector3(23.61,  0.220, 2.94);
                 this.object.lookAt(look);
         
                 // Traversing meshes
@@ -108,10 +105,12 @@ class Player {
                     this.animations[animation.name.toLowerCase()] = animation;
                 })
     
-                this.mixer = new THREE.AnimationMixer(this.object);
+                this.mixer = new THREE.AnimationMixer(gltf.scene);
     
                 // Set initial action
                 this.action = "idle";
+
+                this.ready = true;
             },
             undefined,
             (error) => {
@@ -121,24 +120,19 @@ class Player {
     }
     
     set action(name) {
-        // Convert name to lowercase to ensure consistent comparison and assignment
-        const lowerName = name.toLowerCase();
 
         // Check if the action is already set
-        if (this.actionName === lowerName) {
-            console.log(`Action already set to: ${name}`);
-            return;
-        }
+        if (this.actionName == name.toLowerCase()) return 
 
         // Fetch the animation clip for the given action name
-        const clip = this.animations[lowerName];
+        const clip = this.animations[name.toLowerCase()];
 
         // If the clip is found, proceed with the action change
         if (clip !== undefined) {
             const action = this.mixer.clipAction(clip);
 
             // Special handling for "shot" action
-            if (lowerName === 'shot') {
+            if (name.toLowerCase() === 'shot') {
                 action.clampWhenFinished = true;
                 action.setLoop(LoopOnce);
             }
@@ -146,7 +140,7 @@ class Player {
             action.reset();
 
             const nofade = this.actionName === 'shot';
-            this.actionName = lowerName;
+            this.actionName = name.toLowerCase();
 
             action.play();
 
@@ -163,7 +157,7 @@ class Player {
 
             // Adjust the rifle's quaternion if the direction is defined
             if (this.rifle && this.rifleDirection) {
-                const qua = this.rifleDirection[lowerName];
+                const qua = this.rifleDirection[name.toLowerCase()];
                 if (qua !== undefined) {
                     this.rifle.quaternion.copy(qua);
                     this.rifle.rotateX(Math.PI / 2);
@@ -176,6 +170,15 @@ class Player {
 
     update(dt){
 		if (this.mixer) this.mixer.update(dt);
+        if (this.rotateRifle !== undefined){
+			this.rotateRifle.time += dt;
+			if (this.rotateRifle.time > 0.5){
+				this.rifle.quaternion.copy( this.rotateRifle.end );
+				delete this.rotateRifle;
+			}else{
+				this.rifle.quaternion.slerpQuaternions(this.rotateRifle.start, this.rotateRifle.end, this.rotateRifle.time * 2);
+			}
+		}
     }
     
 }
